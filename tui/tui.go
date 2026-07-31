@@ -219,6 +219,7 @@ func loadVMs(ctx context.Context, cfg config.Config) ([]pve.VM, error) {
 			APIURL:      ep,
 			TokenID:     cfg.APITokenID,
 			TokenSecret: cfg.APITokenSecret,
+			Insecure:    cfg.Insecure,
 		})
 		vms, err := client.ListVMs(ctx)
 		if err == nil {

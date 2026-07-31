@@ -9,13 +9,16 @@ import (
 	"github.com/pneugebala/ssh-pve/config"
 )
 
-// Field indices in the onboarding form's input slice.
+// Field indices in the onboarding form. Indices 0..fieldSSHTemplate are
+// textinputs backed by form.inputs; fieldVerifyTLS is a boolean toggle with
+// no textinput. fieldCount is the total number of focusable fields.
 const (
 	fieldEndpoints = iota
 	fieldTokenID
 	fieldTokenSecret
 	fieldSSHUser
 	fieldSSHTemplate
+	fieldVerifyTLS
 	fieldCount
 )
 
@@ -31,8 +34,8 @@ type fieldInfo struct {
 var fieldInfos = [fieldCount]fieldInfo{
 	{
 		label:       "Cluster Endpoints (required)",
-		desc:        "Comma-separated PVE API URLs, tried in order so a down node falls through to the next.",
-		placeholder: "https://pve1.example.com:8006, https://pve2.example.com:8006",
+		desc:        "Comma-separated PVE API URLs (including /api2/json), tried in order so a down node falls through to the next.",
+		placeholder: "https://pve1.example.com:8006/api2/json, https://pve2.example.com:8006/api2/json",
 	},
 	{
 		label:       "API Token ID (required)",
@@ -55,6 +58,10 @@ var fieldInfos = [fieldCount]fieldInfo{
 		desc:        "Template with {{user}} and {{ip}} placeholders. Leave empty for the default.",
 		placeholder: "ssh {{user}}@{{ip}}",
 	},
+	{
+		label: "Verify TLS Certificates (optional)",
+		desc:  "Uncheck for clusters using self-signed certificates. Space toggles.",
+	},
 }
 
 // tokenPerms is the explanation shown below the API Token Secret field,
@@ -69,11 +76,13 @@ Create a custom role (e.g. GuestAgentReader with VM.GuestAgent.Audit)
 and assign it on /vms alongside PVEAuditor on /.`
 
 // form holds the onboarding form state: the textinput slice, the focused
-// field index, and an error string shown at the bottom.
+// field index, a boolean toggle for the TLS checkbox, and an error string
+// shown at the bottom.
 type form struct {
-	inputs []textinput.Model
-	focus  int
-	err    string
+	inputs    []textinput.Model
+	focus     int
+	verifyTLS bool
+	err       string
 }
 
 // newForm builds the onboarding form with prefilled defaults from
@@ -109,7 +118,7 @@ func newForm() form {
 		inputs[i] = ti
 	}
 
-	f := form{inputs: inputs}
+	f := form{inputs: inputs, verifyTLS: true}
 	f.inputs[f.focus].Focus()
 	return f
 }
@@ -148,22 +157,41 @@ func (m model) onboardingUpdate(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "enter":
 			return m.submitOnboarding()
 		case "tab":
-			m.form.inputs[m.form.focus].Blur()
+			if m.form.focus != fieldVerifyTLS {
+				m.form.inputs[m.form.focus].Blur()
+			}
 			m.form.focus = (m.form.focus + 1) % fieldCount
-			return m, m.form.inputs[m.form.focus].Focus()
+			if m.form.focus != fieldVerifyTLS {
+				return m, m.form.inputs[m.form.focus].Focus()
+			}
+			return m, nil
 		case "shift+tab":
-			m.form.inputs[m.form.focus].Blur()
+			if m.form.focus != fieldVerifyTLS {
+				m.form.inputs[m.form.focus].Blur()
+			}
 			m.form.focus = (m.form.focus - 1 + fieldCount) % fieldCount
-			return m, m.form.inputs[m.form.focus].Focus()
+			if m.form.focus != fieldVerifyTLS {
+				return m, m.form.inputs[m.form.focus].Focus()
+			}
+			return m, nil
 		case "esc":
 			return m, tea.Quit
+		case "space":
+			if m.form.focus == fieldVerifyTLS {
+				m.form.verifyTLS = !m.form.verifyTLS
+				return m, nil
+			}
 		}
 	}
 
-	// Route any other message to the focused textinput.
-	var cmd tea.Cmd
-	m.form.inputs[m.form.focus], cmd = m.form.inputs[m.form.focus].Update(msg)
-	return m, cmd
+	// Route any other message to the focused textinput. The checkbox has no
+	// textinput and consumes only the space toggle handled above.
+	if m.form.focus != fieldVerifyTLS {
+		var cmd tea.Cmd
+		m.form.inputs[m.form.focus], cmd = m.form.inputs[m.form.focus].Update(msg)
+		return m, cmd
+	}
+	return m, nil
 }
 
 // submitOnboarding reads the form values into a Config, validates locally,
@@ -175,6 +203,7 @@ func (m model) submitOnboarding() (tea.Model, tea.Cmd) {
 		Endpoints:          splitCSV(m.form.inputs[fieldEndpoints].Value()),
 		APITokenID:         m.form.inputs[fieldTokenID].Value(),
 		APITokenSecret:     m.form.inputs[fieldTokenSecret].Value(),
+		Insecure:           !m.form.verifyTLS,
 		DefaultSSHUser:     m.form.inputs[fieldSSHUser].Value(),
 		SSHCommandTemplate: m.form.inputs[fieldSSHTemplate].Value(),
 	}
@@ -221,14 +250,22 @@ func (m model) onboardingView() string {
 				}
 			}
 
-			// Input (with focus indicator)
+			// Field value (with focus indicator)
 			b.WriteString("\n")
 			if i == m.form.focus {
 				b.WriteString(styleSelected.Render("▸ "))
 			} else {
 				b.WriteString("  ")
 			}
-			b.WriteString(m.form.inputs[i].View())
+			if i == fieldVerifyTLS {
+				if m.form.verifyTLS {
+					b.WriteString("[x] Verify TLS certificates")
+				} else {
+					b.WriteString("[ ] Verify TLS certificates")
+				}
+			} else {
+				b.WriteString(m.form.inputs[i].View())
+			}
 			b.WriteString("\n\n")
 		}
 
@@ -239,7 +276,7 @@ func (m model) onboardingView() string {
 		}
 
 		// Hints
-		b.WriteString(styleHint.Render("Tab: next field  Shift+Tab: prev  Enter: submit  Esc: quit"))
+		b.WriteString(styleHint.Render("Tab: next field  Shift+Tab: prev  Space: toggle  Enter: submit  Esc: quit"))
 	}
 
 	return styleFrame.Width(m.width).Height(m.height).Render(b.String())

@@ -44,6 +44,12 @@ type Config struct {
 	// plaintext on disk; the file is written mode 0600 by [Save].
 	APITokenSecret string `yaml:"api_token_secret"`
 
+	// Insecure disables TLS certificate verification when talking to the
+	// PVE API. Intended for lab clusters using self-signed certificates;
+	// leave false in production. The onboarding form exposes this as a
+	// "Verify TLS" checkbox (unchecked → Insecure true).
+	Insecure bool `yaml:"insecure,omitempty"`
+
 	// DefaultSSHUser is the SSH user used for every VM that has no
 	// per-VM override. Required.
 	DefaultSSHUser string `yaml:"default_ssh_user"`
@@ -76,7 +82,7 @@ type VMOverride struct {
 // functional the moment the cluster bits are filled.
 func Default() *Config {
 	return &Config{
-		Endpoints:          []string{"https://your-pve-host:8006"},
+		Endpoints:          []string{"https://your-pve-host:8006/api2/json"},
 		DefaultSSHUser:     "root",
 		SSHCommandTemplate: defaultTemplate,
 	}
