@@ -10,6 +10,10 @@ package pve
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"net/url"
+	"strings"
 	"sync"
 
 	"github.com/luthermonson/go-proxmox"
@@ -60,6 +64,8 @@ func New(cfg Config) *Client {
 		panic("pve: New requires a non-empty APIURL, TokenID and TokenSecret")
 	}
 
+	apiURL := normalizeAPIURL(cfg.APIURL)
+
 	opts := []proxmox.Option{
 		proxmox.WithAPIToken(cfg.TokenID, cfg.TokenSecret),
 	}
@@ -73,9 +79,27 @@ func New(cfg Config) *Client {
 	}
 
 	return &Client{
-		px:   proxmox.NewClient(cfg.APIURL, opts...),
+		px:   proxmox.NewClient(apiURL, opts...),
 		conc: conc,
 	}
+}
+
+// normalizeAPIURL ensures the base URL carries the /api2/json path prefix that
+// the PVE REST API lives under. Users frequently enter just the host root
+// (e.g. "https://pve:8006") because the PVE web UI never surfaces the API
+// path; without this the library builds paths like
+// "https://pve:8006/cluster/status" which hit the static file handler and
+// return "500 no such file" instead of the API.
+func normalizeAPIURL(raw string) string {
+	u, err := url.Parse(raw)
+	if err != nil {
+		return raw // let the library surface the parse error
+	}
+	path := strings.TrimRight(u.Path, "/")
+	if path == "" || path == "/api2" || !strings.HasPrefix(path, "/api2/json") {
+		u.Path = "/api2/json"
+	}
+	return u.String()
 }
 
 // ListVMs returns every QEMU virtual machine in the cluster together with the
@@ -100,6 +124,9 @@ func (c *Client) ListVMs(ctx context.Context) ([]VM, error) {
 
 	resources, err := cluster.Resources(ctx, "vm")
 	if err != nil {
+		if errors.Is(err, proxmox.ErrNotAuthorized) {
+			return nil, fmt.Errorf("pve: token not authorized (needs Sys.Audit on / for /cluster/resources, VM.Audit + VM.GuestAgent.Audit on /vms for guest-agent IPs — assign PVEAuditor to the TOKEN, not the user, with privilege separation on): %w", err)
+		}
 		return nil, err
 	}
 
