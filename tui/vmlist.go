@@ -6,6 +6,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 )
 
 // Column styles for the VM list. Each uses a fixed Width so the columns line
@@ -265,16 +266,24 @@ func (m model) renderVMRow(i int) string {
 
 	// Reveal IPs (or agent error) only for the selected or hovered row.
 	if isSel || isHover {
+		const sep = "  "
+		w := m.width
+		if w == 0 {
+			w = 80
+		}
+		avail := w - 6 - lipgloss.Width(row) - len(sep)
+		if avail < 1 {
+			avail = 1
+		}
 		switch {
-		case len(vm.IPv4) > 0 || len(vm.IPv6) > 0:
-			var ips []string
-			ips = append(ips, vm.IPv4...)
-			ips = append(ips, vm.IPv6...)
-			row += "  " + styleIP.Render(strings.Join(ips, "  "))
+		case len(vm.IPv4) > 0:
+			row += sep + styleIP.Render(ansi.Truncate(strings.Join(vm.IPv4, "  "), avail, "…"))
+		case len(vm.IPv6) > 0:
+			row += sep + styleIP.Render(ansi.Truncate(strings.Join(vm.IPv6, "  "), avail, "…"))
 		case vm.AgentError != "":
-			row += "  " + styleError.Render("(" + vm.AgentError + ")")
+			row += sep + styleError.Render("(" + vm.AgentError + ")")
 		default:
-			row += "  " + styleMuted.Render("(no IPs)")
+			row += sep + styleMuted.Render("(no IPs)")
 		}
 	}
 
