@@ -2,7 +2,10 @@ module github.com/pneugebala/ssh-pve
 
 go 1.26.1
 
-require github.com/luthermonson/go-proxmox v0.8.1
+require (
+	github.com/luthermonson/go-proxmox v0.8.1
+	gopkg.in/yaml.v3 v3.0.1
+)
 
 require (
 	github.com/buger/goterm v1.0.4 // indirect
