@@ -11,11 +11,25 @@ import (
 // $XDG_CONFIG_HOME and otherwise defaults to ~/.config/ssh-pve/config.yaml,
 // matching the user's requested location on every platform.
 func ConfigPath() (string, error) {
-	dir, err := configDir()
+	dir, err := Dir()
 	if err != nil {
 		return "", err
 	}
 	return filepath.Join(dir, "config.yaml"), nil
+}
+
+// Dir returns the ssh-pve configuration directory. It honors $XDG_CONFIG_HOME
+// and otherwise uses ~/.config/ssh-pve. Other packages (e.g. cache) use this
+// to place sibling files in the same directory.
+func Dir() (string, error) {
+	if xdg := os.Getenv("XDG_CONFIG_HOME"); xdg != "" {
+		return filepath.Join(xdg, "ssh-pve"), nil
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(home, ".config", "ssh-pve"), nil
 }
 
 // Exists reports whether a config file is present on disk. The TUI uses this
@@ -53,7 +67,7 @@ func Load() (*Config, error) {
 // if needed. The file itself is written mode 0600 because it contains the API
 // token secret and should not be world-readable.
 func Save(c *Config) error {
-	dir, err := configDir()
+	dir, err := Dir()
 	if err != nil {
 		return err
 	}
@@ -66,18 +80,4 @@ func Save(c *Config) error {
 	}
 	p := filepath.Join(dir, "config.yaml")
 	return os.WriteFile(p, data, 0o600)
-}
-
-// configDir returns the ssh-pve config directory. It honors $XDG_CONFIG_HOME
-// and otherwise uses ~/.config/ssh-pve, matching the user's requested path on
-// Linux and any platform where XDG_CONFIG_HOME is set.
-func configDir() (string, error) {
-	if xdg := os.Getenv("XDG_CONFIG_HOME"); xdg != "" {
-		return filepath.Join(xdg, "ssh-pve"), nil
-	}
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "", err
-	}
-	return filepath.Join(home, ".config", "ssh-pve"), nil
 }
