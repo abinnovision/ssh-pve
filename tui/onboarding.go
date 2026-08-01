@@ -6,6 +6,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/bubbles/v2/textinput"
 
+	"github.com/pneugebala/ssh-pve/cache"
 	"github.com/pneugebala/ssh-pve/config"
 )
 
@@ -145,6 +146,7 @@ func (m model) onboardingUpdate(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.selected = 0
 			m.hovered = -1
 			m.scroll = 0
+			_ = cache.Save(msg.vms)
 			return m, nil
 		}
 		return m, nil

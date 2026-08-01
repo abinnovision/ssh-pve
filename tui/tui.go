@@ -29,6 +29,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/bubbles/v2/spinner"
 
+	"github.com/pneugebala/ssh-pve/cache"
 	"github.com/pneugebala/ssh-pve/config"
 	"github.com/pneugebala/ssh-pve/pve"
 )
@@ -62,6 +63,7 @@ type model struct {
 	selected int
 	hovered  int // -1 when no row is hovered
 	scroll   int // index of the first visible row
+	fetching bool // true while a background VM load is in flight
 	flash    string
 
 	// ssh hand-off: non-empty when the user pressed Enter and Run should
@@ -111,8 +113,10 @@ func Run() error {
 }
 
 // newModel builds the initial model. If a config file exists it is loaded and
-// the TUI starts directly in the VM-list loading state; otherwise it starts
-// onboarding. A corrupt config falls back to onboarding with the error shown.
+// the TUI starts in the VM-list state. When a cache file is also available the
+// cached VMs are shown immediately and a background fetch refreshes them; if
+// no cache exists the TUI shows a loading spinner until the first fetch
+// completes. A corrupt config falls back to onboarding with the error shown.
 func newModel() model {
 	m := model{
 		spinner: spinner.New(spinner.WithSpinner(spinner.MiniDot)),
@@ -128,7 +132,15 @@ func newModel() model {
 			return m
 		}
 		m.cfg = *cfg
-		m.state = stateVMListLoading
+		m.fetching = true
+		// Show cached VMs instantly if available; otherwise wait for the
+		// first fetch with a loading spinner.
+		if cached, _, err := cache.Load(); err == nil && len(cached) > 0 {
+			m.vms = cached
+			m.state = stateVMListReady
+		} else {
+			m.state = stateVMListLoading
+		}
 	} else {
 		m.state = stateOnboarding
 		m.form = newForm()
@@ -144,6 +156,11 @@ func (m model) Init() tea.Cmd {
 		return m.form.inputs[m.form.focus].Focus()
 	case stateVMListLoading:
 		return tea.Batch(m.spinner.Tick, loadVMsCmd(m.cfg))
+	case stateVMListReady:
+		if m.fetching {
+			return tea.Batch(m.spinner.Tick, loadVMsCmd(m.cfg))
+		}
+		return nil
 	default:
 		return nil
 	}
@@ -164,7 +181,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	// Drive the spinner only while a background operation is in flight.
-	if m.state == stateOnboardingValidating || m.state == stateVMListLoading {
+	if m.fetching || m.state == stateOnboardingValidating {
 		if _, ok := msg.(spinner.TickMsg); ok {
 			var cmd tea.Cmd
 			m.spinner, cmd = m.spinner.Update(msg)

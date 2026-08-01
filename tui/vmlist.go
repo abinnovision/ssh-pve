@@ -7,6 +7,8 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
+
+	"github.com/pneugebala/ssh-pve/cache"
 )
 
 // Column styles for the VM list. Each uses a fixed Width so the columns line
@@ -77,6 +79,7 @@ func (m model) vmlistUpdate(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m model) vmlistLoadingUpdate(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case vmsLoadedMsg:
+		m.fetching = false
 		m.state = stateVMListReady
 		if msg.err != nil {
 			m.flash = "Failed to load VMs: " + msg.err.Error()
@@ -86,6 +89,7 @@ func (m model) vmlistLoadingUpdate(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.selected = 0
 		m.hovered = -1
 		m.scroll = 0
+		_ = cache.Save(msg.vms)
 		return m, nil
 	case tea.KeyPressMsg:
 		if msg.String() == "esc" || msg.String() == "q" {
@@ -99,6 +103,21 @@ func (m model) vmlistLoadingUpdate(msg tea.Msg) (tea.Model, tea.Cmd) {
 // the Enter-to-SSH hand-off.
 func (m model) vmlistReadyUpdate(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case vmsLoadedMsg:
+		m.fetching = false
+		if msg.err != nil {
+			m.flash = "Refresh failed: " + msg.err.Error()
+			return m, nil
+		}
+		m.vms = msg.vms
+		if m.selected >= len(m.vms) {
+			m.selected = max(0, len(m.vms)-1)
+		}
+		m.adjustScroll()
+		_ = cache.Save(msg.vms)
+		m.flash = ""
+		return m, nil
+
 	case tea.KeyPressMsg:
 		switch msg.String() {
 		case "up", "k":
@@ -191,8 +210,12 @@ func (m model) vmlistView() string {
 func (m model) readyView() string {
 	var b strings.Builder
 
-	// Title
-	b.WriteString(styleTitle.Render(fmt.Sprintf("ssh-pve — VM List (%d VMs)", len(m.vms))))
+	// Title — spinner appears beside it while a background refresh is running.
+	title := styleTitle.Render(fmt.Sprintf("ssh-pve — VM List (%d VMs)", len(m.vms)))
+	if m.fetching {
+		title += " " + m.spinner.View()
+	}
+	b.WriteString(title)
 	b.WriteString("\n\n")
 
 	// Column headers
