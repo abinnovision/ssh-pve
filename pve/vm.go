@@ -10,33 +10,33 @@ import "errors"
 type VM struct {
 	// Name is the VM's name as configured in Proxmox. May be empty for VMs
 	// that were never given one.
-	Name string
+	Name string `yaml:"name"`
 
 	// ID is the Proxmox VMID (e.g. 100).
-	ID uint64
+	ID uint64 `yaml:"id"`
 
 	// Node is the cluster node the VM currently runs on.
-	Node string
+	Node string `yaml:"node"`
 
 	// Status is the VM run state as reported by the cluster resource listing
 	// (e.g. "running", "stopped").
-	Status string
+	Status string `yaml:"status"`
 
 	// IPv4 holds the global IPv4 addresses the guest agent reported, across
 	// all non-loopback interfaces. Empty when the agent is unreachable or has
 	// not reported any IPv4 address.
-	IPv4 []string
+	IPv4 []string `yaml:"ipv4,omitempty"`
 
 	// IPv6 holds the global (non-link-local) IPv6 addresses the guest agent
 	// reported. Link-local fe80::/10 addresses are filtered out because they
 	// are never usable SSH targets.
-	IPv6 []string
+	IPv6 []string `yaml:"ipv6,omitempty"`
 
 	// AgentError is empty when the guest-agent network query succeeded. When
 	// non-empty it holds a short, single-line reason the agent could not be
 	// queried (VM off, agent not installed, permission denied, ...), suitable
 	// for rendering next to the VM in a list.
-	AgentError string
+	AgentError string `yaml:"agent_error,omitempty"`
 }
 
 // ErrNoIP is the sentinel returned by [VM.PrimaryIPv4] and [VM.PrimaryIPv6]
