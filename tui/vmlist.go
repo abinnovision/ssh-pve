@@ -286,6 +286,9 @@ func (m model) renderVMRow(i int) string {
 	}
 
 	row := fmt.Sprintf("%s %s  %s  %s  %s", marker, idCol, nameCol, nodeCol, statusCol)
+	if isSel {
+		row = styleSelected.Render(row)
+	}
 
 	// Reveal IPs (or agent error) only for the selected or hovered row.
 	if isSel || isHover {
