@@ -1,0 +1,66 @@
+version: 2
+
+project_name: ssh-pve
+
+builds:
+  - id: ssh-pve
+    main: ./cmd/ssh-pve
+    binary: ssh-pve
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+
+archives:
+  - id: ssh-pve
+    formats: [tar.gz]
+    name_template: >-
+      {{ .ProjectName }}_{{ .Os }}_{{ .Arch }}
+
+checksum:
+  name_template: "checksums.txt"
+
+changelog:
+  # release-please owns the changelog (CHANGELOG.md + GitHub Release notes).
+  disable: true
+
+release:
+  github:
+    owner: abinnovision
+    name: ssh-pve
+  # Attach archives + checksums to the Release that release-please already
+  # created for this tag, instead of trying to recreate it.
+  mode: append
+  # release-please cuts the release as a draft (draft + force-tag-creation in
+  # release-please-config.json). Drafts are excluded from GitHub's "latest", so
+  # the Install ssh-pve step above still bootstraps from the last stable
+  # release instead of this empty one. use_existing_draft lets GoReleaser adopt
+  # that draft by name, append the archives, and publish it (draft defaults false).
+  use_existing_draft: true
+
+homebrew_casks:
+  - name: ssh-pve
+    repository:
+      owner: abinnovision
+      name: homebrew-tap
+      # The primary GITHUB_TOKEN passed to goreleaser only has write access
+      # to this repo. Push credential is a short-lived, least-privilege
+      # token minted per-release via ssh-pve's own token-exchange
+      # grant against gh-token-broker's RFC 8693 endpoint (scoped only to
+      # abinnovision/homebrew-tap, contents:write) — see ci.yml's
+      # "Fetch homebrew-tap token from gh-token-broker" step. Not a stored PAT.
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+    homepage: "https://github.com/abinnovision/ssh-pve"
+    description: "A terminal UI for listing Proxmox VE VMs across a whole cluster and shelling into them with a single keypress."
+    binaries:
+      - ssh-pve
+    hooks:
+      post:
+        install: |
+          if OS.mac?
+            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/ssh-pve"]
+          end
