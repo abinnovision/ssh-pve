@@ -6,6 +6,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/bubbles/v2/textinput"
 	"charm.land/bubbles/v2/viewport"
+	"charm.land/lipgloss/v2"
 
 	"github.com/abinnovision/ssh-pve/cache"
 	"github.com/abinnovision/ssh-pve/config"
@@ -255,15 +256,24 @@ func (m model) submitOnboarding() (tea.Model, tea.Cmd) {
 	return m, tea.Batch(m.spinner.Tick, loadVMsCmd(m.cfg))
 }
 
-// onboardingView renders the onboarding form through a viewport so the form
-// scrolls when the terminal is too short to display every field. The viewport
-// content (and thus its line count) is rebuilt every render from the current
-// form state; the viewport's yOffset is preserved across renders, so scroll
-// position set by Tab/Shift+Tab/PgUp/PgDn/mouse wheel persists.
+// onboardingView renders two stacked bordered boxes: a scrollable form pane
+// on top (viewport-driven so it scrolls when the terminal is too short) and a
+// fixed keybindings pane below that stays visible at all times. The viewport's
+// yOffset is preserved across renders, so scroll position set by
+// Tab/Shift+Tab/PgUp/PgDn/mouse wheel persists.
 func (m model) onboardingView() string {
+	w, h := m.width, m.height
+	if w == 0 {
+		w = 80
+	}
+	if h == 0 {
+		h = 24
+	}
+
 	if m.state == stateOnboardingValidating {
-		return styleFrame.Width(m.width).Height(m.height).Render(
+		mainBox := styleFrame.Width(w).Height(h - hintBoxHeight).Render(
 			m.spinner.View() + "  Connecting to cluster and loading VMs...")
+		return lipgloss.JoinVertical(lipgloss.Left, mainBox, m.hintBox(w))
 	}
 
 	content, _ := m.buildOnboardingContent()
@@ -275,7 +285,18 @@ func (m model) onboardingView() string {
 	m.sizeOnboardingViewport(&vp)
 	vp.SetContent(content)
 
-	return styleFrame.Width(m.width).Height(m.height).Render(vp.View())
+	mainBox := styleFrame.Width(w).Height(h - hintBoxHeight).Render(vp.View())
+	return lipgloss.JoinVertical(lipgloss.Left, mainBox, m.hintBox(w))
+}
+
+// hintBoxHeight is the vertical space reserved for the keybindings pane:
+// 1 blank separator + 1 blank line + 1 content line = 3.
+const hintBoxHeight = 3
+
+// hintBox renders the always-visible keybindings line.
+func (m model) hintBox(width int) string {
+	hints := "Tab: next field  Shift+Tab: prev  Space: toggle  Enter: submit  PgUp/PgDn: scroll  Esc: quit"
+	return "\n" + styleHint.Padding(0, 2).Width(width).Render(hints)
 }
 
 // syncOnboardingViewport rebuilds the form content, records each field's
@@ -290,8 +311,9 @@ func (m *model) syncOnboardingViewport() {
 }
 
 // sizeOnboardingViewport sets the viewport width/height to the interior of
-// the frame. The frame adds a 1-cell border on every side and 2 cells of
-// horizontal padding, so the interior is width-6 by height-2.
+// the main frame. The frame adds a 1-cell border on every side and 2 cells of
+// horizontal padding, so the interior is width-6 by (mainBoxHeight-2).
+// mainBoxHeight is the terminal height minus the reserved hintBoxHeight.
 func (m model) sizeOnboardingViewport(vp *viewport.Model) {
 	fw, fh := m.width, m.height
 	if fw == 0 {
@@ -300,6 +322,7 @@ func (m model) sizeOnboardingViewport(vp *viewport.Model) {
 	if fh == 0 {
 		fh = 24
 	}
+	fh -= hintBoxHeight
 	fw -= 6
 	fh -= 2
 	if fw < 1 {
@@ -415,9 +438,6 @@ func (m model) buildOnboardingContent() (string, [fieldCount]int) {
 		b.WriteString("\n\n")
 		line += 2
 	}
-
-	// Hints
-	b.WriteString(styleHint.Render("Tab: next field  Shift+Tab: prev  Space: toggle  Enter: submit  PgUp/PgDn: scroll  Esc: quit"))
 
 	return b.String(), fieldLines
 }
