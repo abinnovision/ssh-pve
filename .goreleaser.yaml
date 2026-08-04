@@ -4,7 +4,7 @@ project_name: ssh-pve
 
 builds:
   - id: ssh-pve
-    main: ./cmd/ssh-pve
+    main: .
     binary: ssh-pve
     env:
       - CGO_ENABLED=0
