@@ -67,14 +67,19 @@ var fieldInfos = [fieldCount]fieldInfo{
 
 // tokenPerms is the explanation shown below the API Token Secret field,
 // listing the permissions the token must have for the TUI to work.
-const tokenPerms = `Required token permissions (PVE 8.x+):
+const tokenPerms = `Required token permissions:
   • Sys.Audit on /                    — list cluster resources
   • VM.Audit on /vms                  — read VM status and config
   • VM.GuestAgent.Audit on /vms       — query the guest agent for IPs
+    (VM.Monitor on PVE 8.x, which lacks VM.GuestAgent.Audit)
 
-The built-in PVEAuditor role grants the first two but NOT the third.
-Create a custom role (e.g. GuestAgentReader with VM.GuestAgent.Audit)
-and assign it on /vms alongside PVEAuditor on /.`
+PVE 9.x: the built-in PVEAuditor role grants all three.
+PVE 8.x: PVEAuditor lacks VM.Monitor, so add a custom role
+         (e.g. GuestAgentAudit with VM.Monitor) on /vms.
+
+With privilege separation on, the token's effective permissions are the
+intersection of the user's and the token's ACLs, so assign every role to
+BOTH the user and the token.`
 
 // form holds the onboarding form state: the textinput slice, the focused
 // field index, a boolean toggle for the TLS checkbox, and an error string

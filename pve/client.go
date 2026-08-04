@@ -125,7 +125,7 @@ func (c *Client) ListVMs(ctx context.Context) ([]VM, error) {
 	resources, err := cluster.Resources(ctx, "vm")
 	if err != nil {
 		if errors.Is(err, proxmox.ErrNotAuthorized) {
-			return nil, fmt.Errorf("pve: token not authorized (needs Sys.Audit on / for /cluster/resources, VM.Audit + VM.GuestAgent.Audit on /vms for guest-agent IPs — assign PVEAuditor to the TOKEN, not the user, with privilege separation on): %w", err)
+			return nil, fmt.Errorf("pve: token not authorized (needs Sys.Audit on / for /cluster/resources, VM.Audit + VM.GuestAgent.Audit on /vms for guest-agent IPs (VM.Monitor on PVE 8.x); with privilege separation on, assign every role to BOTH the user and the token): %w", err)
 		}
 		return nil, err
 	}
