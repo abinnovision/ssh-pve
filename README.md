@@ -6,48 +6,50 @@ into them with a single keypress.
 `ssh-pve` connects to a Proxmox VE cluster via the REST API, inventories every
 QEMU virtual machine (name, ID, node, run status), enriches each VM with the
 IPv4/IPv6 addresses its QEMU guest agent reports, and presents them in a
-scrollable list. Press Enter on a VM and the TUI exits, handing the terminal
-to `ssh` so the session looks like you ran it yourself.
-
-- **Cluster-wide** — lists VMs from every node in one view, no per-node login.
-- **Guest-agent IPs** — addresses come from inside the guest, not the PVE
-  management network, so you reach the VM's real interface.
-- **Endpoint fallback** — configure multiple API endpoints; the first
-  reachable one wins.
-- **Per-VM overrides** — different SSH user or command template per VMID.
-- **Onboarding** — first launch with no config file walks you through setup
-  and verifies the connection before saving.
-- **Keyboard + mouse** — full alt-buffer TUI with hover, click, scroll wheel.
+scrollable list. Pressing Enter on a VM exits the TUI and hands the terminal
+over to `ssh`.
 
 ## Requirements
 
-- Proxmox VE 8.x or 9.x (9.x recommended — `PVEAuditor` alone covers all
-  required permissions; see [Permissions](#permissions) below).
+- Proxmox VE 8.x or 9.x.
+- An API token (see [Permissions](#permissions))
 - The QEMU guest agent installed and running inside each VM you want to reach.
 - Go 1.26 or newer (only if building from source).
 
 ## Install
 
+Homebrew (macOS/Linux):
+
+```sh
+brew install abinnovision/tap/ssh-pve
+```
+
+With the Go toolchain:
+
 ```sh
 go install github.com/abinnovision/ssh-pve@latest
 ```
 
-Or build from a checkout:
+Build from a checkout:
 
 ```sh
 git clone https://github.com/abinnovision/ssh-pve
 cd ssh-pve
-go build -o ssh-pve .
+make build # Builds to ./dist/ssh-pve
+make install # Moves binary to ~/.local/bin/ssh-pve
 ```
+
+Or download a prebuilt binary (darwin/linux, amd64/arm64) from the
+[releases page](https://github.com/abinnovision/ssh-pve/releases).
 
 ## Quick start
 
-1. Create an API token with the right permissions — see
+1. Create an API token with the right permissions - see
    [Permissions](#permissions).
 2. Run `ssh-pve`. On first launch the onboarding form appears:
 
    ```
-   ssh-pve — cluster onboarding
+   ssh-pve - cluster onboarding
 
    ▸ Cluster Endpoints (required)
      Comma-separated PVE API URLs (including /api2/json), tried in order...
@@ -60,7 +62,7 @@ go build -o ssh-pve .
 3. Fill in the fields, press Enter. The TUI verifies the connection by
    listing VMs; on failure it returns to the form with an error.
 4. On success the VM list appears. Hover or select a row to reveal its IPs
-   (IPv4 preferred — IPv6 shown only when no IPv4 exists). Press Enter to SSH.
+   (IPv4 preferred - IPv6 shown only when no IPv4 exists). Press Enter to SSH.
 
 ## Configuration
 
@@ -75,7 +77,7 @@ endpoints:
 api_token_id: inventory@pve!readonly
 api_token_secret: 11111111-2222-3333-4444-555555555555
 default_ssh_user: root
-ssh_command_template: ssh {{user}}@{{ip}        # optional
+ssh_command_template: ssh {{user}}@{{ip}}        # optional
 insecure: false                                  # optional, default false
 vm_overrides:                                    # optional
   100:
@@ -95,7 +97,7 @@ vm_overrides:                                    # optional
 
 ### SSH command template
 
-Templates use simple `{{user}}` / `{{ip}}` substitution — no shell escaping is
+Templates use simple `{{user}}` / `{{ip}}` substitution - no shell escaping is
 applied, so keep the template under your control. Examples:
 
 ```yaml
@@ -113,88 +115,38 @@ ssh_command_template: ssh -J jump.example.com {{user}}@{{ip}}
 | `q` / `Esc` | Quit |
 | `Tab` / `Shift+Tab` | Cycle form fields (onboarding) |
 | `Space` | Toggle checkbox (onboarding) |
-| Mouse hover | Reveal IPs for the row under the cursor |
-| Mouse click | Select the clicked row |
-| Scroll wheel | Scroll the list |
 
 ## Permissions
 
-`ssh-pve` needs a read-only API token. The token authenticates via the
-`Authorization` header; the backing user's password is never checked, so a
-service account with no password (unable to log in to the web UI) is the
-recommended setup.
-
-The token needs three privileges on three paths:
+The token needs these privileges:
 
 | API endpoint | Privilege | Path |
 | --- | --- | --- |
 | `/cluster/resources` | `Sys.Audit` | `/` |
 | `/nodes/{node}/qemu/{vmid}/status/current`, `/config` | `VM.Audit` | `/vms/{vmid}` |
-| `/nodes/{node}/qemu/{vmid}/agent/network-get-interfaces` | `VM.GuestAgent.Audit` | `/vms/{vmid}` |
+| `/nodes/{node}/qemu/{vmid}/agent/network-get-interfaces` | `VM.GuestAgent.Audit` (PVE 9.x) / `VM.Monitor` (PVE 8.x) | `/vms/{vmid}` |
 
-**PVE 9.x** — the built-in `PVEAuditor` role grants all three (it gained
-`VM.GuestAgent.Audit` when `VM.Monitor` was split into the `VM.GuestAgent.*`
-family). Assign `PVEAuditor` to the **token** (not the user) with privilege
-separation on, and you're done.
+### CLI setup
 
-**PVE 8.x** — `PVEAuditor` lacks `VM.GuestAgent.Audit`. Create a custom role
-with that privilege and assign it alongside `PVEAuditor`.
-
-### GUI setup (PVE 9.x)
-
-1. **Create the service user**
-   `Datacenter` → `Permissions` → `Users` → `Add`
-   - User name: `inventory`
-   - Realm: `PVE`
-   - No password needed — the token authenticates independently.
-
-2. **Create the API token** (copy the secret now — shown once)
-   `Datacenter` → `Permissions` → `API Tokens` → `Add`
-   - User: `inventory@pve`
-   - Token ID: `readonly`
-   - **Privilege Separation: enabled** (the default; critical — without it
-     the token inherits the user's full permissions)
-   - Click `Create`, copy the displayed secret.
-
-3. **Grant the token `PVEAuditor` on `/`**
-   `Datacenter` → `Permissions` → `Add` → `API Permission`
-   - Path: `/`
-   - User/Token: `inventory@pve!readonly` (the token, not the user)
-   - Role: `PVEAuditor`
-   - Propagate: checked
-
-> **Gotcha**: with privilege separation on, the token's effective permissions
-> are the intersection of the user's and the token's ACLs. If you assign
-> `PVEAuditor` to the **user** `inventory@pve` but not the **token**
-> `inventory@pve!readonly`, the token gets nothing and the VM list comes back
-> empty. Assign the role to the token.
-
-### CLI equivalent
+With privilege separation on, the token's effective permissions are the
+**intersection** of the user's and the token's ACLs, so both must carry every
+role - a token-only ACL grants nothing.
 
 ```sh
-pveum user add inventory@pve
+# PVE 9.x - PVEAuditor covers all three privileges
+pveum user add inventory@pve --password "$(openssl rand -base64 24)"
 pveum user token add inventory@pve readonly -privsep 1
+pveum acl modify / -user  'inventory@pve'          -role PVEAuditor
 pveum acl modify / -token 'inventory@pve!readonly' -role PVEAuditor
 ```
 
-## Project layout
-
+```sh
+# PVE 8.x - PVEAuditor lacks VM.Monitor, so add a custom role on /vms
+pveum user add inventory@pve --password "$(openssl rand -base64 24)"
+pveum user token add inventory@pve readonly -privsep 1
+pveum role add GuestAgentAudit -privs "VM.Monitor"
+pveum acl modify /     -user  'inventory@pve'          -role PVEAuditor
+pveum acl modify /     -token 'inventory@pve!readonly' -role PVEAuditor
+pveum acl modify /vms  -user  'inventory@pve'          -role GuestAgentAudit
+pveum acl modify /vms  -token 'inventory@pve!readonly' -role GuestAgentAudit
 ```
-.
-├── main.go          # entry point — calls tui.Run()
-├── pve/             # cluster inventory client (go-proxmox wrapper)
-│   ├── client.go    #   New, ListVMs, bounded-concurrency guest-agent fetch
-│   └── vm.go        #   VM type, PrimaryIPv4/PrimaryIPv6, Running
-├── config/          # on-disk YAML config store
-│   ├── config.go    #   Config, VMOverride, Validate, ResolveSSH, Default
-│   └── io.go        #   Load, Save, ConfigPath, Exists (XDG-aware)
-└── tui/             # bubbletea v2 terminal UI
-    ├── tui.go       #   model, state machine, Run, SSH hand-off
-    ├── onboarding.go#   config form with connection test
-    ├── vmlist.go    #   scrollable VM list with hover-reveal IPs
-    └── styles.go    #   shared lipgloss palette
-```
-
-## License
-
-MIT
