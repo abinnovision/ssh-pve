@@ -5,6 +5,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/bubbles/v2/textinput"
+	"charm.land/bubbles/v2/viewport"
 
 	"github.com/abinnovision/ssh-pve/cache"
 	"github.com/abinnovision/ssh-pve/config"
@@ -82,17 +83,24 @@ intersection of the user's and the token's ACLs, so assign every role to
 BOTH the user and the token.`
 
 // form holds the onboarding form state: the textinput slice, the focused
-// field index, a boolean toggle for the TLS checkbox, and an error string
-// shown at the bottom.
+// field index, a boolean toggle for the TLS checkbox, an error string shown
+// at the bottom, and a viewport that scrolls the form when the terminal is
+// too short to show every field at once. fieldLines[i] is the 0-based line
+// index of field i's input row within the built content — used to keep the
+// focused field visible after Tab/Shift+Tab.
 type form struct {
-	inputs    []textinput.Model
-	focus     int
-	verifyTLS bool
-	err       string
+	inputs     []textinput.Model
+	focus      int
+	verifyTLS  bool
+	err        string
+	viewport   viewport.Model
+	fieldLines [fieldCount]int
 }
 
 // newForm builds the onboarding form with prefilled defaults from
-// config.Default().
+// config.Default(). Each textinput is given a filled background style so the
+// editable area reads as a box rather than prose; the focused field uses a
+// brighter background than blurred fields.
 func newForm() form {
 	def := config.Default()
 	inputs := make([]textinput.Model, fieldCount)
@@ -102,6 +110,19 @@ func newForm() form {
 		ti.Prompt = ""
 		ti.SetWidth(60)
 		ti.CharLimit = 200
+
+		// Filled backgrounds make the input area obvious against the
+		// description text. The focused state is brighter.
+		s := ti.Styles()
+		s.Blurred.Text = s.Blurred.Text.Background(colorInputBg)
+		s.Blurred.Placeholder = s.Blurred.Placeholder.
+			Background(colorInputBg).
+			Foreground(colorMuted)
+		s.Focused.Text = s.Focused.Text.Background(colorInputBgFocus)
+		s.Focused.Placeholder = s.Focused.Placeholder.
+			Background(colorInputBgFocus).
+			Foreground(colorMuted)
+		ti.SetStyles(s)
 
 		switch i {
 		case fieldEndpoints:
@@ -124,7 +145,11 @@ func newForm() form {
 		inputs[i] = ti
 	}
 
-	f := form{inputs: inputs, verifyTLS: true}
+	vp := viewport.New(viewport.WithWidth(80), viewport.WithHeight(24))
+	vp.SoftWrap = true
+	vp.MouseWheelEnabled = true
+
+	f := form{inputs: inputs, verifyTLS: true, viewport: vp}
 	f.inputs[f.focus].Focus()
 	return f
 }
@@ -158,6 +183,10 @@ func (m model) onboardingUpdate(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	// stateOnboarding — handle form navigation and input.
+	// Sync the viewport first so scroll operations (EnsureVisible, PageUp,
+	// PageDown) see a correct maxYOffset.
+	m.syncOnboardingViewport()
+
 	switch msg := msg.(type) {
 	case tea.KeyPressMsg:
 		switch msg.String() {
@@ -169,8 +198,10 @@ func (m model) onboardingUpdate(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			m.form.focus = (m.form.focus + 1) % fieldCount
 			if m.form.focus != fieldVerifyTLS {
+				m.ensureFieldVisible()
 				return m, m.form.inputs[m.form.focus].Focus()
 			}
+			m.ensureFieldVisible()
 			return m, nil
 		case "shift+tab":
 			if m.form.focus != fieldVerifyTLS {
@@ -178,8 +209,10 @@ func (m model) onboardingUpdate(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			m.form.focus = (m.form.focus - 1 + fieldCount) % fieldCount
 			if m.form.focus != fieldVerifyTLS {
+				m.ensureFieldVisible()
 				return m, m.form.inputs[m.form.focus].Focus()
 			}
+			m.ensureFieldVisible()
 			return m, nil
 		case "esc":
 			return m, tea.Quit
@@ -188,7 +221,17 @@ func (m model) onboardingUpdate(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.form.verifyTLS = !m.form.verifyTLS
 				return m, nil
 			}
+		case "pgup":
+			m.form.viewport.PageUp()
+			return m, nil
+		case "pgdown":
+			m.form.viewport.PageDown()
+			return m, nil
 		}
+	case tea.MouseWheelMsg:
+		var cmd tea.Cmd
+		m.form.viewport, cmd = m.form.viewport.Update(msg)
+		return m, cmd
 	}
 
 	// Route any other message to the focused textinput. The checkbox has no
@@ -225,66 +268,159 @@ func (m model) submitOnboarding() (tea.Model, tea.Cmd) {
 	return m, tea.Batch(m.spinner.Tick, loadVMsCmd(m.cfg))
 }
 
-// onboardingView renders the full onboarding form with field labels,
-// descriptions, inputs, the token permission notice, and a hint bar.
+// onboardingView renders the onboarding form through a viewport so the form
+// scrolls when the terminal is too short to display every field. The viewport
+// content (and thus its line count) is rebuilt every render from the current
+// form state; the viewport's yOffset is preserved across renders, so scroll
+// position set by Tab/Shift+Tab/PgUp/PgDn/mouse wheel persists.
 func (m model) onboardingView() string {
-	var b strings.Builder
-
 	if m.state == stateOnboardingValidating {
-		b.WriteString(m.spinner.View())
-		b.WriteString("  Connecting to cluster and loading VMs...")
-	} else {
-		b.WriteString(styleTitle.Render("ssh-pve — Onboarding"))
-		b.WriteString("\n\n")
-
-		for i := 0; i < fieldCount; i++ {
-			info := fieldInfos[i]
-
-			// Label
-			b.WriteString(styleLabel.Render(info.label))
-			b.WriteString("\n")
-
-			// Description
-			b.WriteString(styleDesc.Render(info.desc))
-			b.WriteString("\n")
-
-			// Extra permission notice after the token secret field.
-			if i == fieldTokenSecret {
-				b.WriteString("\n")
-				for _, line := range strings.Split(tokenPerms, "\n") {
-					b.WriteString(styleDesc.Render(line))
-					b.WriteString("\n")
-				}
-			}
-
-			// Field value (with focus indicator)
-			b.WriteString("\n")
-			if i == m.form.focus {
-				b.WriteString(styleSelected.Render("▸ "))
-			} else {
-				b.WriteString("  ")
-			}
-			if i == fieldVerifyTLS {
-				if m.form.verifyTLS {
-					b.WriteString("[x] Verify TLS certificates")
-				} else {
-					b.WriteString("[ ] Verify TLS certificates")
-				}
-			} else {
-				b.WriteString(m.form.inputs[i].View())
-			}
-			b.WriteString("\n\n")
-		}
-
-		// Error
-		if m.form.err != "" {
-			b.WriteString(styleError.Render(m.form.err))
-			b.WriteString("\n\n")
-		}
-
-		// Hints
-		b.WriteString(styleHint.Render("Tab: next field  Shift+Tab: prev  Space: toggle  Enter: submit  Esc: quit"))
+		return styleFrame.Width(m.width).Height(m.height).Render(
+			m.spinner.View() + "  Connecting to cluster and loading VMs...")
 	}
 
-	return styleFrame.Width(m.width).Height(m.height).Render(b.String())
+	content, _ := m.buildOnboardingContent()
+
+	// Work on a copy of the viewport: View() is a value receiver, so the
+	// real model's viewport (whose yOffset was set by Update) is not
+	// mutated. SetContent on the copy preserves the copied yOffset.
+	vp := m.form.viewport
+	m.sizeOnboardingViewport(&vp)
+	vp.SetContent(content)
+
+	return styleFrame.Width(m.width).Height(m.height).Render(vp.View())
+}
+
+// syncOnboardingViewport rebuilds the form content, records each field's
+// input-row line index, and pushes both the content and the current terminal
+// dimensions into the viewport. Called from Update so that EnsureVisible,
+// PageUp, and PageDown operate against a correct maxYOffset.
+func (m *model) syncOnboardingViewport() {
+	content, fieldLines := m.buildOnboardingContent()
+	m.form.fieldLines = fieldLines
+	m.sizeOnboardingViewport(&m.form.viewport)
+	m.form.viewport.SetContent(content)
+}
+
+// sizeOnboardingViewport sets the viewport width/height to the interior of
+// the frame. The frame adds a 1-cell border on every side and 2 cells of
+// horizontal padding, so the interior is width-6 by height-2.
+func (m model) sizeOnboardingViewport(vp *viewport.Model) {
+	fw, fh := m.width, m.height
+	if fw == 0 {
+		fw = 80
+	}
+	if fh == 0 {
+		fh = 24
+	}
+	fw -= 6
+	fh -= 2
+	if fw < 1 {
+		fw = 1
+	}
+	if fh < 1 {
+		fh = 1
+	}
+	vp.SetWidth(fw)
+	vp.SetHeight(fh)
+}
+
+// ensureFieldVisible scrolls the viewport so the focused field's input row is
+// visible.
+func (m *model) ensureFieldVisible() {
+	if m.form.focus < 0 || m.form.focus >= fieldCount {
+		return
+	}
+	m.form.viewport.EnsureVisible(m.form.fieldLines[m.form.focus], 0, 0)
+}
+
+// buildOnboardingContent renders the full onboarding form as a single string
+// and returns it together with fieldLines, where fieldLines[i] is the 0-based
+// line index of field i's input row within the returned content. The line
+// structure is static (input values never add or remove lines), so the
+// indices stay valid across renders.
+func (m model) buildOnboardingContent() (string, [fieldCount]int) {
+	var b strings.Builder
+	var fieldLines [fieldCount]int
+	line := 0
+
+	b.WriteString(styleTitle.Render("ssh-pve — Onboarding"))
+	b.WriteString("\n\n")
+	line += 2
+
+	// Fit the input width to the terminal so the filled background fills the
+	// available row rather than overflowing or staying artificially narrow.
+	inputWidth := m.width - 6 - 2 // frame interior minus the "▸ " focus marker
+	if inputWidth > 60 {
+		inputWidth = 60
+	}
+	if inputWidth < 20 {
+		inputWidth = 20
+	}
+	for i := range m.form.inputs {
+		m.form.inputs[i].SetWidth(inputWidth)
+	}
+
+	for i := 0; i < fieldCount; i++ {
+		info := fieldInfos[i]
+
+		// Label
+		b.WriteString(styleLabel.Render(info.label))
+		b.WriteString("\n")
+		line++
+
+		// Description
+		b.WriteString(styleDesc.Render(info.desc))
+		b.WriteString("\n")
+		line++
+
+		// Extra permission notice after the token secret field.
+		if i == fieldTokenSecret {
+			b.WriteString("\n")
+			line++
+			for _, l := range strings.Split(tokenPerms, "\n") {
+				b.WriteString(styleDesc.Render(l))
+				b.WriteString("\n")
+				line++
+			}
+		}
+
+		// Field value (with focus indicator)
+		b.WriteString("\n")
+		line++
+		fieldLines[i] = line
+
+		if i == m.form.focus {
+			b.WriteString(styleSelected.Render("▸ "))
+		} else {
+			b.WriteString("  ")
+		}
+		if i == fieldVerifyTLS {
+			box := "[ ] Verify TLS certificates"
+			if m.form.verifyTLS {
+				box = "[x] Verify TLS certificates"
+			}
+			if i == m.form.focus {
+				b.WriteString(styleInputFocus.Render(box))
+			} else {
+				b.WriteString(styleInput.Render(box))
+			}
+		} else {
+			b.WriteString(m.form.inputs[i].View())
+		}
+		b.WriteString("\n\n")
+		line += 2
+	}
+
+	// Error
+	if m.form.err != "" {
+		b.WriteString(styleError.Render(m.form.err))
+		b.WriteString("\n\n")
+		line += 2
+	}
+
+	// Hints
+	b.WriteString(styleHint.Render("Tab: next field  Shift+Tab: prev  Space: toggle  Enter: submit  PgUp/PgDn: scroll  Esc: quit"))
+
+	return b.String(), fieldLines
 }

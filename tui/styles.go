@@ -10,14 +10,16 @@ import "charm.land/lipgloss/v2"
 
 var (
 	// Colors
-	colorTitle    = lipgloss.Color("99")  // purple
-	colorMuted    = lipgloss.Color("243") // light gray
-	colorAccent   = lipgloss.Color("213") // pink
-	colorError    = lipgloss.Color("203") // red
-	colorSuccess  = lipgloss.Color("42")  // green
-	colorBorder   = lipgloss.Color("240") // dark gray
-	colorSelected = lipgloss.Color("213") // pink
-	colorIP       = lipgloss.Color("117") // light blue
+	colorTitle        = lipgloss.Color("99")  // purple
+	colorMuted        = lipgloss.Color("243") // light gray
+	colorAccent       = lipgloss.Color("213") // pink
+	colorError        = lipgloss.Color("203") // red
+	colorSuccess      = lipgloss.Color("42")  // green
+	colorBorder       = lipgloss.Color("240") // dark gray
+	colorSelected     = lipgloss.Color("213") // pink
+	colorIP           = lipgloss.Color("117") // light blue
+	colorInputBg      = lipgloss.Color("236") // dark gray — unfilled input field background
+	colorInputBgFocus = lipgloss.Color("60")  // muted blue — focused input field background
 )
 
 // Pre-built styles used across screens. Style methods in lipgloss v2 return
@@ -38,4 +40,11 @@ var (
 			Border(lipgloss.RoundedBorder()).
 			BorderForeground(colorBorder).
 			Padding(0, 2)
+
+	// Input field styles give textinputs a filled background so they read as
+	// editable boxes rather than prose. The focused variant is brighter so
+	// the active field is obvious at a glance. Applied to both the textinput
+	// Text/Placeholder styles (in newForm) and to the TLS checkbox.
+	styleInput      = lipgloss.NewStyle().Background(colorInputBg)
+	styleInputFocus = lipgloss.NewStyle().Background(colorInputBgFocus)
 )
