@@ -6,8 +6,8 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/bubbles/v2/textinput"
 
-	"github.com/pneugebala/ssh-pve/cache"
-	"github.com/pneugebala/ssh-pve/config"
+	"github.com/abinnovision/ssh-pve/cache"
+	"github.com/abinnovision/ssh-pve/config"
 )
 
 // Field indices in the onboarding form. Indices 0..fieldSSHTemplate are

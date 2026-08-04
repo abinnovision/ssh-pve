@@ -16,8 +16,8 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/pneugebala/ssh-pve/config"
-	"github.com/pneugebala/ssh-pve/pve"
+	"github.com/abinnovision/ssh-pve/config"
+	"github.com/abinnovision/ssh-pve/pve"
 )
 
 // cacheFile is the on-disk representation: a fetch timestamp plus the VMs.

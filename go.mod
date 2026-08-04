@@ -1,4 +1,4 @@
-module github.com/pneugebala/ssh-pve
+module github.com/abinnovision/ssh-pve
 
 go 1.26.1
 

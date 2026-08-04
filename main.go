@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/pneugebala/ssh-pve/tui"
+	"github.com/abinnovision/ssh-pve/tui"
 )
 
 func main() {

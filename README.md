@@ -29,13 +29,13 @@ to `ssh` so the session looks like you ran it yourself.
 ## Install
 
 ```sh
-go install github.com/pneugebala/ssh-pve@latest
+go install github.com/abinnovision/ssh-pve@latest
 ```
 
 Or build from a checkout:
 
 ```sh
-git clone https://github.com/pneugebala/ssh-pve
+git clone https://github.com/abinnovision/ssh-pve
 cd ssh-pve
 go build -o ssh-pve .
 ```

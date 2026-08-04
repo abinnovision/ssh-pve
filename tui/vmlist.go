@@ -8,7 +8,7 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 
-	"github.com/pneugebala/ssh-pve/cache"
+	"github.com/abinnovision/ssh-pve/cache"
 )
 
 // Column styles for the VM list. Each uses a fixed Width so the columns line

@@ -29,9 +29,9 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/bubbles/v2/spinner"
 
-	"github.com/pneugebala/ssh-pve/cache"
-	"github.com/pneugebala/ssh-pve/config"
-	"github.com/pneugebala/ssh-pve/pve"
+	"github.com/abinnovision/ssh-pve/cache"
+	"github.com/abinnovision/ssh-pve/config"
+	"github.com/abinnovision/ssh-pve/pve"
 )
 
 // state tracks which screen the TUI is showing and, for the loading states,
