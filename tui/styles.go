@@ -12,7 +12,6 @@ var (
 	// Colors
 	colorTitle    = lipgloss.Color("99")  // purple
 	colorMuted    = lipgloss.Color("243") // light gray
-	colorAccent   = lipgloss.Color("213") // pink
 	colorError    = lipgloss.Color("203") // red
 	colorSuccess  = lipgloss.Color("42")  // green
 	colorBorder   = lipgloss.Color("240") // dark gray
@@ -31,8 +30,6 @@ var (
 	styleError    = lipgloss.NewStyle().Foreground(colorError).Bold(true)
 	styleHint     = lipgloss.NewStyle().Foreground(colorMuted).Italic(true)
 	styleSelected = lipgloss.NewStyle().Foreground(colorSelected).Bold(true)
-	styleRunning  = lipgloss.NewStyle().Foreground(colorSuccess)
-	styleStopped  = lipgloss.NewStyle().Foreground(colorMuted)
 	styleIP       = lipgloss.NewStyle().Foreground(colorIP)
 	styleFrame    = lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).

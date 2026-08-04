@@ -71,8 +71,9 @@ func (m model) vmlistUpdate(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.vmlistLoadingUpdate(msg)
 	case stateVMListReady:
 		return m.vmlistReadyUpdate(msg)
+	default:
+		return m, nil
 	}
-	return m, nil
 }
 
 // vmlistLoadingUpdate waits for VMs to load and allows the user to quit.
@@ -307,7 +308,7 @@ func (m model) renderVMRow(i int) string {
 		case len(vm.IPv6) > 0:
 			row += sep + styleIP.Render(ansi.Truncate(strings.Join(vm.IPv6, "  "), avail, "…"))
 		case vm.AgentError != "":
-			row += sep + styleError.Render("(" + vm.AgentError + ")")
+			row += sep + styleError.Render("("+vm.AgentError+")")
 		default:
 			row += sep + styleMuted.Render("(no IPs)")
 		}

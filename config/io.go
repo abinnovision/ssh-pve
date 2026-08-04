@@ -52,7 +52,7 @@ func Load() (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
-	data, err := os.ReadFile(p)
+	data, err := os.ReadFile(p) //nolint:gosec // path is from config dir, not user input
 	if err != nil {
 		return nil, err
 	}

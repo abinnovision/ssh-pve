@@ -3,9 +3,9 @@ package tui
 import (
 	"strings"
 
-	tea "charm.land/bubbletea/v2"
 	"charm.land/bubbles/v2/textinput"
 	"charm.land/bubbles/v2/viewport"
+	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
 	"github.com/abinnovision/ssh-pve/cache"
@@ -147,8 +147,7 @@ func newForm() form {
 // processed — all other input is queued until the test finishes.
 func (m model) onboardingUpdate(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if m.state == stateOnboardingValidating {
-		switch msg := msg.(type) {
-		case vmsLoadedMsg:
+		if msg, ok := msg.(vmsLoadedMsg); ok {
 			if msg.err != nil {
 				m.state = stateOnboarding
 				m.form.err = "Connection failed: " + msg.err.Error()
@@ -436,7 +435,6 @@ func (m model) buildOnboardingContent() (string, [fieldCount]int) {
 	if m.form.err != "" {
 		b.WriteString(styleError.Render(m.form.err))
 		b.WriteString("\n\n")
-		line += 2
 	}
 
 	return b.String(), fieldLines

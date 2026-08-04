@@ -20,14 +20,15 @@ package tui
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"strings"
 	"time"
 
-	tea "charm.land/bubbletea/v2"
 	"charm.land/bubbles/v2/spinner"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/abinnovision/ssh-pve/cache"
 	"github.com/abinnovision/ssh-pve/config"
@@ -55,14 +56,14 @@ type model struct {
 	spinner spinner.Model
 
 	// onboarding form + config being built
-	form     form
-	cfg      config.Config
+	form form
+	cfg  config.Config
 
 	// vm list
 	vms      []pve.VM
 	selected int
-	hovered  int // -1 when no row is hovered
-	scroll   int // index of the first visible row
+	hovered  int  // -1 when no row is hovered
+	scroll   int  // index of the first visible row
 	fetching bool // true while a background VM load is in flight
 	flash    string
 
@@ -98,13 +99,14 @@ func Run() error {
 	// The TUI has fully exited and bubbletea has restored the terminal to
 	// cooked mode, so ssh inherits a clean TTY. Using "sh -c" lets the
 	// template contain shell syntax (quotes, flags, etc.).
-	cmd := exec.Command("sh", "-c", m.sshCommand)
+	cmd := exec.Command("sh", "-c", m.sshCommand) //nolint:gosec,noctx // sshCommand is user-controlled via config; shell interpretation is intentional; no parent context for the SSH hand-off
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
 		// ssh exited non-zero — surface the error but don't swallow it.
-		if ee, ok := err.(*exec.ExitError); ok {
+		var ee *exec.ExitError
+		if errors.As(err, &ee) {
 			os.Exit(ee.ExitCode())
 		}
 		return fmt.Errorf("tui: ssh: %w", err)

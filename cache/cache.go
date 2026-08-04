@@ -22,8 +22,8 @@ import (
 
 // cacheFile is the on-disk representation: a fetch timestamp plus the VMs.
 type cacheFile struct {
-	FetchedAt time.Time  `yaml:"fetched_at"`
-	VMs       []pve.VM   `yaml:"vms"`
+	FetchedAt time.Time `yaml:"fetched_at"`
+	VMs       []pve.VM  `yaml:"vms"`
 }
 
 // Path returns the absolute path to the cache file, in the same directory
@@ -55,7 +55,7 @@ func Load() ([]pve.VM, time.Time, error) {
 	if err != nil {
 		return nil, time.Time{}, err
 	}
-	data, err := os.ReadFile(p)
+	data, err := os.ReadFile(p) //nolint:gosec // path is from config dir, not user input
 	if err != nil {
 		return nil, time.Time{}, err
 	}
@@ -68,7 +68,8 @@ func Load() ([]pve.VM, time.Time, error) {
 
 // Save writes the VMs to the cache file, stamping the fetch time as now.
 // The parent directory is created (mode 0700) if needed. The cache file is
-// mode 0644 — it holds no secrets, only cluster inventory metadata.
+// mode 0600 — it holds no secrets, only cluster inventory metadata, but a
+// restrictive mode is harmless and silences gosec G306.
 func Save(vms []pve.VM) error {
 	dir, err := config.Dir()
 	if err != nil {
@@ -79,7 +80,7 @@ func Save(vms []pve.VM) error {
 	}
 	data, err := yaml.Marshal(cacheFile{
 		FetchedAt: time.Now(),
-		VMs:      vms,
+		VMs:       vms,
 	})
 	if err != nil {
 		return err
@@ -88,5 +89,5 @@ func Save(vms []pve.VM) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(p, data, 0o644)
+	return os.WriteFile(p, data, 0o600)
 }

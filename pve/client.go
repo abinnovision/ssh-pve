@@ -193,7 +193,7 @@ func (c *Client) fetchAgentIPs(ctx context.Context, vm *VM) {
 		return
 	}
 
-	handle, err := node.VirtualMachine(ctx, int(vm.ID))
+	handle, err := node.VirtualMachine(ctx, int(vm.ID)) //nolint:gosec // vm.ID is a PVE VMID, always a small integer in practice
 	if err != nil {
 		vm.AgentError = "vm lookup: " + shortErr(err)
 		return
