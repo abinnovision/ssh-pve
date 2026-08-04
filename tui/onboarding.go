@@ -111,19 +111,6 @@ func newForm() form {
 		ti.SetWidth(60)
 		ti.CharLimit = 200
 
-		// Filled backgrounds make the input area obvious against the
-		// description text. The focused state is brighter.
-		s := ti.Styles()
-		s.Blurred.Text = s.Blurred.Text.Background(colorInputBg)
-		s.Blurred.Placeholder = s.Blurred.Placeholder.
-			Background(colorInputBg).
-			Foreground(colorMuted)
-		s.Focused.Text = s.Focused.Text.Background(colorInputBgFocus)
-		s.Focused.Placeholder = s.Focused.Placeholder.
-			Background(colorInputBgFocus).
-			Foreground(colorMuted)
-		ti.SetStyles(s)
-
 		switch i {
 		case fieldEndpoints:
 			ti.Placeholder = fieldInfos[i].placeholder
@@ -348,9 +335,10 @@ func (m model) buildOnboardingContent() (string, [fieldCount]int) {
 	b.WriteString("\n\n")
 	line += 2
 
-	// Fit the input width to the terminal so the filled background fills the
-	// available row rather than overflowing or staying artificially narrow.
-	inputWidth := m.width - 6 - 2 // frame interior minus the "▸ " focus marker
+	// Fit the input width to the terminal. The available width is the frame
+	// interior (m.width-6) minus the 2-char indent (reserved for the focus
+	// indicator) minus the input border (4 = 2 cells per side).
+	inputWidth := m.width - 6 - 2 - 4
 	if inputWidth > 60 {
 		inputWidth = 60
 	}
@@ -385,31 +373,40 @@ func (m model) buildOnboardingContent() (string, [fieldCount]int) {
 			}
 		}
 
-		// Field value (with focus indicator)
+		// Field value. The box is indented 2 chars so the focus indicator
+		// (rendered on the box's middle line) never shifts the top border.
 		b.WriteString("\n")
 		line++
 		fieldLines[i] = line
 
+		border := styleInputBorder
 		if i == m.form.focus {
-			b.WriteString(styleSelected.Render("▸ "))
-		} else {
-			b.WriteString("  ")
+			border = styleInputBorderFocus
 		}
+		var box string
 		if i == fieldVerifyTLS {
-			box := "[ ] Verify TLS certificates"
+			box = "[ ] Verify TLS certificates"
 			if m.form.verifyTLS {
 				box = "[x] Verify TLS certificates"
 			}
-			if i == m.form.focus {
-				b.WriteString(styleInputFocus.Render(box))
-			} else {
-				b.WriteString(styleInput.Render(box))
-			}
 		} else {
-			b.WriteString(m.form.inputs[i].View())
+			box = m.form.inputs[i].View()
 		}
-		b.WriteString("\n\n")
-		line += 2
+		boxLines := strings.Split(border.Render(box), "\n")
+		for j, bl := range boxLines {
+			b.WriteString("  ")
+			// Overlay the focus indicator on the middle line of the box.
+			if i == m.form.focus && j == len(boxLines)/2 {
+				b.WriteString(styleSelected.Render("▸"))
+			} else {
+				b.WriteString(" ")
+			}
+			b.WriteString(bl)
+			b.WriteString("\n")
+			line++
+		}
+		b.WriteString("\n")
+		line++
 	}
 
 	// Error
