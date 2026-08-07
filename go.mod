@@ -8,6 +8,7 @@ require (
 	charm.land/lipgloss/v2 v2.0.5
 	github.com/charmbracelet/x/ansi v0.11.7
 	github.com/luthermonson/go-proxmox v0.8.1
+	github.com/sahilm/fuzzy v0.1.3
 	gopkg.in/yaml.v3 v3.0.1
 )
 

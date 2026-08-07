@@ -67,6 +67,14 @@ type model struct {
 	fetching bool // true while a background VM load is in flight
 	flash    string
 
+	// type-ahead search: typeBuffer accumulates printable keystrokes and
+	// typeGen is a generation counter that lets us ignore stale reset
+	// timers — each keystroke bumps it, so a reset scheduled by an earlier
+	// keystroke no longer matches and is dropped. Like native browser
+	// <select> dropdowns: jump to the first matching entry, clear on pause.
+	typeBuffer string
+	typeGen    int
+
 	// ssh hand-off: non-empty when the user pressed Enter and Run should
 	// exec the command after the TUI exits.
 	sshCommand string
@@ -77,6 +85,24 @@ type model struct {
 type vmsLoadedMsg struct {
 	vms []pve.VM
 	err error
+}
+
+// typeResetMsg clears the type-ahead buffer after a period of inactivity. gen
+// must match the model's typeGen to take effect, so a reset scheduled by an
+// earlier keystroke is ignored once newer keys have arrived.
+type typeResetMsg struct {
+	gen int
+}
+
+// typeResetDelay is how long the type-ahead buffer survives after the last
+// keystroke before being cleared — matches native browser dropdown behavior.
+const typeResetDelay = 1 * time.Second
+
+// typeResetCmd schedules a typeResetMsg with the given generation.
+func typeResetCmd(gen int) tea.Cmd {
+	return tea.Tick(typeResetDelay, func(time.Time) tea.Msg {
+		return typeResetMsg{gen: gen}
+	})
 }
 
 // Run starts the TUI. It handles onboarding when no config file exists, then
