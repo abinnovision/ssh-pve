@@ -7,8 +7,10 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/sahilm/fuzzy"
 
 	"github.com/abinnovision/ssh-pve/cache"
+	"github.com/abinnovision/ssh-pve/pve"
 )
 
 // Column styles for the VM list. Each uses a fixed Width so the columns line
@@ -63,6 +65,34 @@ func (m *model) adjustScroll() {
 		m.scroll = 0
 	}
 }
+
+// matchVM returns the index of the best match for the type-ahead buffer among
+// VM names, or -1 when the buffer is empty or nothing matches. Prefix matches
+// win first ("he" → first VM starting with "he"); only when none exist does it
+// fall back to fzf-style fuzzy matching ("ht1" → "hermes-terminal-1"). The
+// prefix step is needed because sahilm/fuzzy penalizes string length, so pure
+// fuzzy would rank a shorter non-prefix name above a longer prefix match.
+func (m model) matchVM() int {
+	if m.typeBuffer == "" {
+		return -1
+	}
+	needle := strings.ToLower(m.typeBuffer)
+	for i, vm := range m.vms {
+		if strings.HasPrefix(strings.ToLower(vm.Name), needle) {
+			return i
+		}
+	}
+	matches := fuzzy.FindFrom(m.typeBuffer, vmNameSource(m.vms))
+	if len(matches) == 0 {
+		return -1
+	}
+	return matches[0].Index
+}
+
+type vmNameSource []pve.VM
+
+func (s vmNameSource) String(i int) string { return s[i].Name }
+func (s vmNameSource) Len() int            { return len(s) }
 
 // vmlistUpdate dispatches to the loading or ready sub-handler.
 func (m model) vmlistUpdate(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -143,7 +173,34 @@ func (m model) vmlistReadyUpdate(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 		case "q", "esc":
 			return m, tea.Quit
+		default:
+			// Type-ahead search: accumulate printable, unmodified
+			// keystrokes and jump the selection to the first VM whose
+			// name is prefixed by the buffer. Bound keys above never
+			// reach here; modified combos (ctrl/alt/meta) and non-printable
+			// keys are ignored so they can't pollute the buffer.
+			key := msg.Key()
+			if key.Mod&(tea.ModCtrl|tea.ModAlt|tea.ModMeta) != 0 {
+				return m, nil
+			}
+			if key.Text == "" {
+				return m, nil
+			}
+			m.typeBuffer += key.Text
+			m.typeGen++
+			if i := m.matchVM(); i >= 0 {
+				m.selected = i
+				m.adjustScroll()
+				m.flash = ""
+			}
+			return m, typeResetCmd(m.typeGen)
 		}
+
+	case typeResetMsg:
+		if msg.gen == m.typeGen {
+			m.typeBuffer = ""
+		}
+		return m, nil
 
 	case tea.MouseMotionMsg:
 		mouse := msg.Mouse()
@@ -254,10 +311,13 @@ func (m model) readyView() string {
 
 	// Separator + hint/flash bar
 	b.WriteString("\n")
-	if m.flash != "" && len(m.vms) > 0 {
+	switch {
+	case m.typeBuffer != "":
+		b.WriteString(styleHint.Render("type-ahead: " + m.typeBuffer))
+	case m.flash != "" && len(m.vms) > 0:
 		b.WriteString(styleError.Render(m.flash))
-	} else {
-		b.WriteString(styleHint.Render("↑↓/jk: navigate  Enter: SSH  q: quit  hover/click: select"))
+	default:
+		b.WriteString(styleHint.Render("↑↓/jk: navigate  Enter: SSH  q: quit  hover/click: select  type name: search"))
 	}
 
 	return b.String()
