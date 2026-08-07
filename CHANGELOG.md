@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.0](https://github.com/abinnovision/ssh-pve/compare/v1.0.0...v1.1.0) (2026-08-07)
+
+
+### Features
+
+* add fuzzy type-ahead search to VM list ([#2](https://github.com/abinnovision/ssh-pve/issues/2)) ([e82bc35](https://github.com/abinnovision/ssh-pve/commit/e82bc3568680e2971fedc937d6a495209b1f10f0))
+
 ## 1.0.0 (2026-08-04)
 
 
