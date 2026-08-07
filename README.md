@@ -115,6 +115,7 @@ ssh_command_template: ssh -J jump.example.com {{user}}@{{ip}}
 | `q` / `Esc` | Quit |
 | `Tab` / `Shift+Tab` | Cycle form fields (onboarding) |
 | `Space` | Toggle checkbox (onboarding) |
+| Type a VM name | Jump to the first VM whose name starts with the typed characters; if none match, fall back to fzf-style fuzzy matching so abbreviations like `ht1` reach `hermes-terminal-1`. Resets after a short pause. Only keys that aren't already bindings participate (e.g. `k`/`j`/`q` navigate/quit instead). |
 
 ## Permissions
 
