@@ -41,8 +41,11 @@ make build # Builds to ./dist/ssh-pve
 make install # Moves binary to ~/.local/bin/ssh-pve
 ```
 
-Or download a prebuilt binary (darwin/linux, amd64/arm64) from the
+Or download a prebuilt binary (darwin/linux/windows, amd64/arm64) from the
 [releases page](https://github.com/abinnovision/ssh-pve/releases).
+
+On Windows, unzip `ssh-pve.exe` and put it in a folder on your `PATH`. It uses
+the OpenSSH client that ships with Windows 10 and 11.
 
 ## Quick start
 
@@ -68,9 +71,19 @@ Or download a prebuilt binary (darwin/linux, amd64/arm64) from the
 
 ## Configuration
 
-The config file lives at `~/.config/ssh-pve/config.yaml` (or
-`$XDG_CONFIG_HOME/ssh-pve/config.yaml` when set). The file is mode 0600 because
-it holds the API token secret.
+The config file holds the API token secret. Its location depends on the
+platform:
+
+| Platform    | Path                                |
+| ----------- | ----------------------------------- |
+| macOS/Linux | `~/.config/ssh-pve/config.yaml`     |
+| Windows     | `%AppData%\ssh-pve\config.yaml`     |
+
+Setting `XDG_CONFIG_HOME` overrides both with
+`$XDG_CONFIG_HOME/ssh-pve/config.yaml`.
+
+On macOS and Linux the file is written with mode 0600. Windows has no file
+modes, so there it is protected only by the permissions of your user profile.
 
 ```yaml
 endpoints:
@@ -106,6 +119,9 @@ applied, so keep the template under your control. Examples:
 ssh_command_template: ssh -i ~/.ssh/id_ed25519 {{user}}@{{ip}}
 ssh_command_template: ssh -J jump.example.com {{user}}@{{ip}}
 ```
+
+The command runs through `sh -c` on macOS and Linux and through `cmd.exe /C` on
+Windows, so use the syntax of that shell.
 
 ### Keybindings
 

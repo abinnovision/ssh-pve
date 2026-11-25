@@ -123,9 +123,10 @@ func Run() error {
 	}
 
 	// The TUI has fully exited and bubbletea has restored the terminal to
-	// cooked mode, so ssh inherits a clean TTY. Using "sh -c" lets the
-	// template contain shell syntax (quotes, flags, etc.).
-	cmd := exec.Command("sh", "-c", m.sshCommand) //nolint:gosec,noctx // sshCommand is user-controlled via config; shell interpretation is intentional; no parent context for the SSH hand-off
+	// cooked mode, so ssh inherits a clean TTY. The command runs through the
+	// platform shell so the template can contain shell syntax (quotes, flags,
+	// etc.).
+	cmd := shellCommand(m.sshCommand)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr

@@ -2,8 +2,8 @@
 // the last-known list instantly on launch while fetching fresh data from the
 // cluster in the background.
 //
-// The cache file lives at ~/.config/ssh-pve/cache.yaml (or
-// $XDG_CONFIG_HOME/ssh-pve/cache.yaml), beside the config file. It contains
+// The cache file lives beside the config file, as cache.yaml in the directory
+// returned by config.Dir. It contains
 // the VMs from the last successful fetch and a timestamp. The TUI writes it
 // after every successful cluster load and reads it at startup to avoid
 // making the user wait for the API before they can interact with the list.
