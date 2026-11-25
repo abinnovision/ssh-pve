@@ -1,5 +1,8 @@
 /dist
 
+# Local dev config (XDG_CONFIG_HOME for `make dev`), holds API token secrets
+/.dev
+
 *~
 
 # temporary files which can be created if a process still has a handle open of a deleted file
