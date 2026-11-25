@@ -1,15 +1,16 @@
 package config
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 
 	"gopkg.in/yaml.v3"
 )
 
-// ConfigPath returns the absolute path to the config file. It honors
-// $XDG_CONFIG_HOME and otherwise defaults to ~/.config/ssh-pve/config.yaml,
-// matching the user's requested location on every platform.
+// ConfigPath returns the absolute path to the config file, config.yaml inside
+// [Dir].
 func ConfigPath() (string, error) {
 	dir, err := Dir()
 	if err != nil {
@@ -19,13 +20,27 @@ func ConfigPath() (string, error) {
 }
 
 // Dir returns the ssh-pve configuration directory. It honors $XDG_CONFIG_HOME
-// and otherwise uses ~/.config/ssh-pve. Other packages (e.g. cache) use this
-// to place sibling files in the same directory.
+// on every platform; otherwise it uses %AppData%\ssh-pve on Windows and
+// ~/.config/ssh-pve elsewhere. Other packages (e.g. cache) use this to place
+// sibling files in the same directory.
 func Dir() (string, error) {
-	if xdg := os.Getenv("XDG_CONFIG_HOME"); xdg != "" {
+	return dirFor(runtime.GOOS, os.Getenv, os.UserHomeDir)
+}
+
+// dirFor implements [Dir] with the OS, environment and home lookup injected so
+// the per-platform rules can be tested on any host.
+func dirFor(goos string, getenv func(string) string, homeDir func() (string, error)) (string, error) {
+	if xdg := getenv("XDG_CONFIG_HOME"); xdg != "" {
 		return filepath.Join(xdg, "ssh-pve"), nil
 	}
-	home, err := os.UserHomeDir()
+	if goos == "windows" {
+		appData := getenv("APPDATA")
+		if appData == "" {
+			return "", errors.New("%AppData% is not defined")
+		}
+		return filepath.Join(appData, "ssh-pve"), nil
+	}
+	home, err := homeDir()
 	if err != nil {
 		return "", err
 	}
@@ -65,7 +80,8 @@ func Load() (*Config, error) {
 
 // Save writes the config to disk, creating the parent directory (mode 0700)
 // if needed. The file itself is written mode 0600 because it contains the API
-// token secret and should not be world-readable.
+// token secret and should not be world-readable. Windows ignores these modes;
+// there the file is protected only by the ACLs of the user's profile.
 func Save(c *Config) error {
 	dir, err := Dir()
 	if err != nil {

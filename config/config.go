@@ -1,8 +1,9 @@
 // Package config manages the ssh-pve TUI's on-disk configuration store.
 //
-// The config file lives at ~/.config/ssh-pve/config.yaml (or under
-// $XDG_CONFIG_HOME/ssh-pve/ when that env var is set) and holds everything the
-// TUI needs to reach a Proxmox VE cluster and open SSH sessions on its VMs:
+// The config file lives at ~/.config/ssh-pve/config.yaml (%AppData%\ssh-pve on
+// Windows, or under $XDG_CONFIG_HOME/ssh-pve/ when that env var is set) and
+// holds everything the TUI needs to reach a Proxmox VE cluster and open SSH
+// sessions on its VMs:
 //
 //   - the ordered list of cluster API endpoints (tried in turn so a down node
 //     falls through to the next),
