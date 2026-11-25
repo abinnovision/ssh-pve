@@ -9,6 +9,8 @@ IPv4/IPv6 addresses its QEMU guest agent reports, and presents them in a
 scrollable list. Pressing Enter on a VM exits the TUI and hands the terminal
 over to `ssh`.
 
+![ssh-pve VM list](docs/screenshot.png)
+
 ## Requirements
 
 - Proxmox VE 8.x or 9.x.
