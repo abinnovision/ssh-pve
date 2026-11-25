@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.0](https://github.com/abinnovision/ssh-pve/compare/v1.1.0...v1.2.0) (2026-11-25)
+
+
+### Features
+
+* add windows support ([#7](https://github.com/abinnovision/ssh-pve/issues/7)) ([6351e08](https://github.com/abinnovision/ssh-pve/commit/6351e08e76d57103615794bdd6eafda1608d01f2))
+
 ## [1.1.0](https://github.com/abinnovision/ssh-pve/compare/v1.0.0...v1.1.0) (2026-08-07)
 
 
